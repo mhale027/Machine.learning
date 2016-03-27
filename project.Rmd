@@ -55,7 +55,7 @@ The first seven variables do not contribute to the physical representation of th
 nzv <- nearZeroVar(training)
 training <- training[,-nzv]
 testing <- testing[,-nzv]
-validate <- validate[,-nvz]
+validate <- validate[,-nzv]
 ```
 
 ##Model Selection
@@ -115,10 +115,10 @@ model.lda.val <- train(classe~., data = validate, method="lda")
 pred.rf.val <- predict(model.rf, validate)
 pred.gbm.val <- predict(model.gbm, validate)
 pred.lda.val <- predict(model.lda, validate)
-pred.df1.val <- data.frame(pred.rf.val, pred.gbm.val, pred.lda.val, classe=validate$classe)
-model.comb.val <- randomForest(classe~., data = pred.df1.val, ntree=500)
+pred.df.val <- data.frame(pred.rf.val, pred.gbm.val, pred.lda.val, classe=validate$classe)
+model.comb.val <- randomForest(classe~., data = pred.df.val, ntree=500)
 pred.comb.val <- predict(model.comb.val, validate)
-confusionMatrix(pred.comb, validate$classe)
+confusionMatrix(pred.comb.val, validate$classe)
 ```
 
 ##Conclusion
