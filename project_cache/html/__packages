@@ -1,0 +1,16 @@
+base
+RevoUtilsMath
+knitr
+foreach
+iterators
+doParallel
+randomForest
+lattice
+ggplot2
+caret
+dplyr
+survival
+gbm
+lda
+plyr
+MASS
