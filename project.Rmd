@@ -1,0 +1,128 @@
+
+---
+title: "Practical Machine Learning - Peer Assessment"
+author: "Matthew Hale"
+date: "Monday, October 19, 2015"
+output: html_document
+---
+
+```{r global_opts, echo=FALSE}
+library(knitr)
+library(doParallel)
+cl <- makeCluster(4)
+registerDoParallel(cl)
+library(foreach)
+library(randomForest)
+library(caret)
+library(dplyr)
+knitr::opts_chunk$set(echo=FALSE, cache=TRUE, message=FALSE, warning=FALSE)
+```
+
+##Summary
+
+In this project I will be using the testing and training data sets which have been graciously provided at [http://groupware.les.inf.puc-rio.br/har](http://groupware.les.inf.puc-rio.br/har), to create a predictive model for the "classe" variable. This type of machine learning is used by companies like Nike, Jawbone, and Fitbit to predict the activities of subjects from the large amount of data recorded by the highly accurate sensors in smartphones. 
+
+##Data Analysis
+
+First, the data must be read into a data frame:
+
+```{r raw_data, echo=TRUE}
+data.train <- read.csv("pml-training.csv")
+data.test <- read.csv("pml-testing.csv")
+```
+
+Next, I remove the columns which are dominated by NA values, and then partition the data into the training and testing sets 
+
+```{r, echo=TRUE}
+library(caret)
+library(randomForest)
+library(gbm)
+library(lda)
+data.train <- data.train[,-c(1:7)]
+nas <- grep("19216", apply(data.train,2,function(x) sum(is.na(x))))
+data.train <- data.train[,-nas]
+valid <- createDataPartition(data.train$classe, p=.4, list=FALSE)
+validate <- data.train[valid,]
+traintest <- data.train[-valid,]
+inTrain <- createDataPartition(traintest$classe, p=.6, list=FALSE)
+training <- traintest[inTrain,]
+testing <- traintest[-inTrain,]
+```
+
+The first seven variables do not contribute to the physical representation of the system, and must be removed. The random forest's main benefit is its accuracy, but it is quite slow to train. The nearZeroVar function determines the variables which contribute nearly zero variance to the data. Since they likely have little influence on the prediction, so I remove them.
+
+```{r, echo=TRUE}
+nzv <- nearZeroVar(training)
+training <- training[,-nzv]
+testing <- testing[,-nzv]
+validate <- validate[,-nvz]
+```
+
+##Model Selection
+
+For this analysis I use the randomForest package from the CRAN libraries. Random forests are also available in the caret package, but are much slower than the randomForest package. I also use the gbm and lda packages to create a secondary predictive models which can be stacked to create a better fit.
+```{r, echo=TRUE}
+model.rf <- randomForest(classe~.,training, ntree=500)
+model.gbm <- train(classe~., data = training, method="gbm")
+model.lda <- train(classe~., data = training, method="lda")
+```
+
+##Testing
+
+First predictions need to be made on the testing set:
+
+```{r, echo=TRUE}
+pred.rf <- predict(model.rf, testing)
+pred.gbm <- predict(model.gbm, testing)
+pred.lda <- predict(model.lda, testing)
+```
+
+#Accuracy tables
+
+Matching the predictions with the actual values from the testing classe colums show how affective the models
+were at predicting the outcome.
+
+```{r, echo=TRUE}
+table.rf <- table(pred.rf, testing$classe)
+table.gbm <- table(pred.gbm, testing$classe)
+table.lda <- table(pred.lda, testing$classe)
+print(table.rf); print(table.gbm);  print(table.lda)
+```
+The random forest is the clear choice for accuracy, but does take the longest to render a model.
+
+#Stacking models
+
+Now we check to see if we can refine the prediction by stacking the models in a data frame and creating a new
+combined model.
+
+```{r, echo=TRUE}
+pred.df <- data.frame(pred.rf, pred.gbm, pred.lda, classe=testing$classe)
+model.comb <- randomForest(classe~., data = pred.df, ntree=500)
+pred.comb <- predict(model.comb, testing)
+confusionMatrix(pred.comb, testing$classe)
+```
+
+As can be seen here, there is insignificant improvement in the predictions when the three models are stacked.
+
+##Validation set
+
+Now to test everything on the validation set.
+
+```{r, echo=TRUE}
+model.rf.val <- randomForest(classe~., validate, ntree=500)
+model.gbm.val <- train(classe~., data = validate, method="gbm")
+model.lda.val <- train(classe~., data = validate, method="lda")
+pred.rf.val <- predict(model.rf, validate)
+pred.gbm.val <- predict(model.gbm, validate)
+pred.lda.val <- predict(model.lda, validate)
+pred.df1.val <- data.frame(pred.rf.val, pred.gbm.val, pred.lda.val, classe=validate$classe)
+model.comb.val <- randomForest(classe~., data = pred.df1.val, ntree=500)
+pred.comb.val <- predict(model.comb.val, validate)
+confusionMatrix(pred.comb, validate$classe)
+```
+
+##Conclusion
+
+We can see that the random forest has a great accuracy within the test set, and the validation set, and the 
+stacking of models doesn't significantly enhance the quality of the prediction. With over 99.9% accuracy and OOB
+the time it takes for the random forest to run is well worth it for the precision with built in cross validation.
